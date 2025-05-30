@@ -1,7 +1,7 @@
 # UniGeo: Taming Video Diffusion for Unified Consistent Geometry Estimation
 
 [![Paper](https://img.shields.io/badge/arXiv-PDF-b31b1b)](https://sunyangtian.github.io/UniGeo-web/)
-[![Website](imgs/badge-website.svg)](https://sunyangtian.github.io/UniGeo-web/)
+[![Website](assets/badge-website.svg)](https://sunyangtian.github.io/UniGeo-web/)
 
 In this repo, we provide a unified framework for geometry estimation and evaluation.
 
@@ -26,7 +26,7 @@ Our framework provides a convenient interface for **various dataset** and **vari
 - [x] scannetv2
 
 
-### Data Format
+### Unified Data Format
 - data['scene_name']:
 - data['images']:
 - data['image_names']:
