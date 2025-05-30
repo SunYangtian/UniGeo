@@ -1,5 +1,8 @@
 # UniGeo: Taming Video Diffusion for Unified Consistent Geometry Estimation
 
+[![Paper](https://img.shields.io/badge/arXiv-PDF-b31b1b)](https://sunyangtian.github.io/UniGeo-web/)
+[![Website](imgs/badge-website.svg)](https://sunyangtian.github.io/UniGeo-web/)
+
 In this repo, we provide a unified framework for geometry estimation and evaluation.
 
 Our framework provides a convenient interface for **various dataset** and **various methods**, which supports a fair comparison by aligning the output and evaluation scripts.
