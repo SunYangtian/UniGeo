@@ -3,7 +3,9 @@
 In this repo, we provide a unified framework for geometry estimation and evaluation.
 
 Our framework provides a convenient interface for **various dataset** and **various methods**, which supports a fair comparison by aligning the output and evaluation scripts.
-![Framework Overview](assets/framework.jpg)
+<p align="center">
+  <img src="assets/framework.jpg" alt="Framework Overview" width="70%"/>
+</p>
 
 
 ### Supported Dataset
