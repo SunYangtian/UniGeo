@@ -30,15 +30,15 @@ def prepare_gt_label(data):
         gt_masks.append(torch.from_numpy(data["mask"][i]).unsqueeze(0).bool())  # [1, H, W]
         gt_poses.append(torch.from_numpy(camera_pose).unsqueeze(0))  # [1, 4, 4]
         gt_depths.append(torch.from_numpy(cam_pts3d).permute(1,2,0).unsqueeze(0)[..., -1])  # [1, H, W]
-        gt_rgbs.append(torch.from_numpy(data['images'][i]).permute(2, 0, 1).unsqueeze(0))  # [1, 3, H, W]
+        gt_rgbs.append(torch.from_numpy(data['images'][i]).permute(1,2,0).unsqueeze(0) / 255.)  # [1, H, W, 3]
         # -----
 
     gt_label = {
-        "gt_world_pts": gt_world_pts,  # list of [1, H, W, 3]
-        "gt_masks": gt_masks,  # list of [1, H, W]
-        "gt_poses": torch.cat(gt_poses, 0),  # [B, 4, 4]
-        "gt_depths": torch.cat(gt_depths, 0),  # [B, H, W]
-        "gt_rgbs": torch.cat(gt_rgbs, 0),  # [B, 3, H, W]
+        "gt_world_pts": torch.cat(gt_world_pts, 0),  # [Nf, H, W, 3]
+        "gt_masks": torch.cat(gt_masks, 0),  # [Nf, H, W]
+        "gt_poses": torch.cat(gt_poses, 0),  # [Nf, 4, 4]
+        "gt_depths": torch.cat(gt_depths, 0),  # [Nf, H, W]
+        "gt_rgbs": torch.cat(gt_rgbs, 0),  # [Nf, H, W, 3]
     }
 
     return gt_label
