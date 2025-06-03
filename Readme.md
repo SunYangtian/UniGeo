@@ -16,10 +16,48 @@ Our framework provides a convenient interface for **various dataset** and **vari
 </p>
 
 ### Evaluation (in progressing ... )
-```
-  python eval.py
-```
+The dataset, model and evaluation metric configuration can be set in the yaml file in [configs](./configs/). E.g.,
 
+- Dataset Config:
+  ```
+  dataset: "ScannetPPDataset"
+  root: /path/to/dataset
+  h: 384
+  w: 512
+  clip_length: 25
+  clip_overlap: 5
+  split: "test"
+  ```
+- Model Config:
+  ```
+  model_name: "DepthCrafter"
+  model_params:
+    model_dir: /path/to/model
+    unet_path: /path/to/DepthCrafter_unet
+    pre_train_path: /path/to/stable_video_diffusion
+  ```
+- Metric Config
+  ```
+  eval_depth:
+    metric_names: 
+      - 'Abs Rel'
+      - 'delta < 1.25'
+      - 'delta < 1.25^2'
+      - 'delta < 1.25^3'
+    depth_alignment: "lstsq"
+
+  eval_normal:
+    metric_names: 
+      - 'normal mean'
+      - 'normal median'
+      - 'angle < 7.5'
+      - 'angle < 11.25'
+  ```
+
+Finally, the evaluation process can be performed by
+  ```
+    python eval.py
+  ```
 
 ### Supported Datasets
 Please refer to [dataset](./dataset/Readme.md) for more details.

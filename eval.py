@@ -8,14 +8,6 @@ from utils.vis_utils import save_point_cloud, save_depth_normal_maps
 
 
 if __name__ == "__main__":
-    # config_path = "configs/spann3r_7scenes.yaml"
-    # config_path = "configs/cut3r_7scenes.yaml"
-    # config_path = "configs/depthcrafter_7scenes.yaml"
-    # config_path = "configs/depthcrafter_scannetv2.yaml"
-    # config_path = "configs/depthcrafter_neuralrgbd.yaml"
-    # config_path = "configs/depthcrafter_replica.yaml"
-    # config_path = "configs/depthcrafter_bonn.yaml"
-    # config_path = "configs/depthcrafter_scannetpp.yaml"
     config_path = "configs/stablenormal_scannetpp.yaml"
 
     with open(config_path, "r") as f:
