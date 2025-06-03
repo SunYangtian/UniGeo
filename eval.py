@@ -1,15 +1,23 @@
 import os
+os.environ['TORCH_HOME'] = '/mnt/pfs/share/pretrained_model'
 import yaml
 from utils.io_utils import prepare_gt_label
 from configs.config_utils import parse_dataset_config, import_class_from_module, parse_metric_config
-from metrics import MetricsManager, depth_evaluation, pcd_evaluation, camera_pose_evaluation
+from metrics import MetricsManager, depth_evaluation, pcd_evaluation, camera_pose_evaluation, normal_evaluation
 from utils.vis_utils import save_point_cloud, save_depth_normal_maps
-import torch
+
 
 if __name__ == "__main__":
     # config_path = "configs/spann3r_7scenes.yaml"
     # config_path = "configs/cut3r_7scenes.yaml"
-    config_path = "configs/depthcrafter_7scenes.yaml"
+    # config_path = "configs/depthcrafter_7scenes.yaml"
+    # config_path = "configs/depthcrafter_scannetv2.yaml"
+    # config_path = "configs/depthcrafter_neuralrgbd.yaml"
+    # config_path = "configs/depthcrafter_replica.yaml"
+    # config_path = "configs/depthcrafter_bonn.yaml"
+    # config_path = "configs/depthcrafter_scannetpp.yaml"
+    config_path = "configs/stablenormal_scannetpp.yaml"
+
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -50,8 +58,14 @@ if __name__ == "__main__":
             print(res[0])
             metric.update(res[0])
 
+        if 'eval_normal' in config:
+            normal_res = normal_evaluation(predicted_normal_original=output["pred_normals"], ground_truth_normal_original=gt_label["gt_normals"], custom_mask=gt_label["gt_masks"])
+            print(normal_res)
+            metric.update(normal_res)
+
+        if config.get('vis_depth', False):
             ### visualization
-            depth_save_dir = os.path.join(save_dir, "depth_maps")
+            depth_save_dir = os.path.join(save_dir, f"depth_{seq}")
             os.makedirs(depth_save_dir, exist_ok=True)
             save_depth_normal_maps(output["pred_depths"], output["pred_normals"], depth_save_dir, rgbs=gt_label["gt_rgbs"])
 
@@ -68,8 +82,9 @@ if __name__ == "__main__":
             print(pcd_eval_res)
             metric.update(pcd_eval_res)
 
+        if config.get('vis_pcd', False):
             ### visualization
-            pcd_save_dir = os.path.join(save_dir, "point_clouds")
+            pcd_save_dir = os.path.join(save_dir, f"pcd_{seq}")
             os.makedirs(pcd_save_dir, exist_ok=True)
             pred_pcd, gt_pcd = pcd_eval_res['pred_pcd'], pcd_eval_res['gt_pcd']
             save_point_cloud(pred_pcd, os.path.join(pcd_save_dir, f"pred.ply"))

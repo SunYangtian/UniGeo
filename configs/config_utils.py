@@ -30,4 +30,6 @@ def parse_metric_config(config):
         metric_names.extend(config['eval_pcd']['metric_names'])
     if 'eval_camera' in config:
         metric_names.extend(config['eval_camera']['metric_names'])
+    if 'eval_normal' in config:
+        metric_names.extend(config['eval_normal']['metric_names'])
     return metric_names

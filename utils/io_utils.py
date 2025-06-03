@@ -11,7 +11,7 @@ def prepare_gt_label(data):
 
     num_views = len(data['images'])
 
-    gt_world_pts, gt_masks, gt_poses, gt_depths = [], [], [], []
+    gt_world_pts, gt_masks, gt_poses, gt_depths, gt_normals = [], [], [], [], []
     gt_rgbs = []
 
     for i in range(num_views):
@@ -31,6 +31,7 @@ def prepare_gt_label(data):
         gt_poses.append(torch.from_numpy(camera_pose).unsqueeze(0))  # [1, 4, 4]
         gt_depths.append(torch.from_numpy(cam_pts3d).permute(1,2,0).unsqueeze(0)[..., -1])  # [1, H, W]
         gt_rgbs.append(torch.from_numpy(data['images'][i]).permute(1,2,0).unsqueeze(0) / 255.)  # [1, H, W, 3]
+        gt_normals.append(torch.from_numpy(data['cam_normal'][i]).permute(1,2,0).unsqueeze(0))  # [1, H, W, 3]
         # -----
 
     gt_label = {
@@ -39,6 +40,7 @@ def prepare_gt_label(data):
         "gt_poses": torch.cat(gt_poses, 0),  # [Nf, 4, 4]
         "gt_depths": torch.cat(gt_depths, 0),  # [Nf, H, W]
         "gt_rgbs": torch.cat(gt_rgbs, 0),  # [Nf, H, W, 3]
+        "gt_normals": torch.cat(gt_normals, 0),  # [Nf, H, W, 3]
     }
 
     return gt_label
