@@ -28,7 +28,7 @@ Please refer to [dataset](./dataset/Readme.md) for more details.
 ### Supported Methods
 Please refer to [model](./model/Readme.md) for more details.
 
-### Acnowledgement
+### Acknowledgements
 This code borrows heavily from [Spann3R](https://github.com/HengyiWang/spann3r), [Monst3R](https://github.com/Junyi42/monst3r), [CUT3R](https://github.com/CUT3R/CUT3R) and [robustmvd](https://github.com/lmb-freiburg/robustmvd). Thanks for these awesome works.
 
 
