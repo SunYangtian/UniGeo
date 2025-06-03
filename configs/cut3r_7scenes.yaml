@@ -1,0 +1,37 @@
+dataset: "sevenScenesDataset"
+root: "/mnt/pfs/data/RGBD/7Scenes"
+h: 384
+w: 512
+clip_length: 20
+clip_overlap: 5
+split: "test"
+
+model_name: "Cut3R"
+model_params:  #
+  model_dir: "/mnt/pfs/users/sunyangtian/Depth/CUT3R/src"
+  ckpt_path: "/mnt/pfs/users/sunyangtian/Depth/CUT3R/src/cut3r_512_dpt_4_64.pth"
+
+
+eval_depth:
+  metric_names: 
+    - 'Abs Rel'
+    - 'delta < 1.25'
+    - 'delta < 1.25^2'
+    - 'delta < 1.25^3'
+  depth_alignment: "lstsq"
+
+
+eval_pcd:
+  metric_names: 
+    - 'acc'
+    - 'comp'
+    - 'nc1'
+    - 'nc2'
+  pcd_downsample_num: 10000
+
+
+eval_camera:
+  metric_names: 
+    - 'ATE'
+    - 'RPE trans'
+    - 'RPE rot'
