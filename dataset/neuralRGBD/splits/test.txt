@@ -1,0 +1,9 @@
+breakfast_room
+complete_kitchen
+green_room
+grey_white_room
+kitchen
+morning_apartment
+staircase
+thin_geometry
+whiteroom

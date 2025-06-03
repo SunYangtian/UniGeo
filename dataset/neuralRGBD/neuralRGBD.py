@@ -13,7 +13,7 @@ from ..dataset_core.dataset import Dataset, Sample, _get_sample_list_path
 from utils.geometry_utils import backproject_to_cv_position
 
 
-class SevenScenesSequence:
+class neuralRGBDSequence:
     def __init__(self, root, scene_name, clip_length=30, clip_overlap=0):
 
         self.root = root
@@ -21,7 +21,7 @@ class SevenScenesSequence:
         
         self.extrinsics, self.intrinsics, self.rgb_path_list, self.depth_path_list = self.load_meta_data(self.root, self.scene_name)
 
-        gap = 1
+        gap = 3
         self.extrinsics = self.extrinsics[::gap]
         self.intrinsics = self.intrinsics[::gap]
         self.rgb_path_list = self.rgb_path_list[::gap]
@@ -46,52 +46,75 @@ class SevenScenesSequence:
 
 
     def load_meta_data(self, root, scene_name):
-        rgb_files = sorted(glob(osp.join(root, scene_name, "*.color.png")))
-        depth_files = sorted(glob(osp.join(root, scene_name, "*.depth.proj.png")))
-        poses_files = sorted(glob(osp.join(root, scene_name, "*.pose.txt")))
+        # https://github.com/CUT3R/CUT3R/blob/main/eval/mv_recon/data.py
+        # root: /mnt/pfs/data/RGBD/neural_rgbd_data
+        # sceen_name: breakfast_room 
 
-        intrinsics = np.array([[525, 0, 320, 0, 525, 240, 0, 0, 1]]).reshape(3, 3)
-        cam2world_list = [np.genfromtxt(pose_file) for pose_file in poses_files]
-        poses = np.stack(cam2world_list, axis=0)  # [N, 4, 4]
+        def extract_img_number(filename):
+            match = re.search(r'img(\d+)\.png', filename)
+            if match:
+                return int(match.group(1))
+            return 0
 
-        ### change to opengl coordinate
-        OPENGL_TO_OPENCV = np.float32([[1, 0, 0, 0],
-                                    [0, -1, 0, 0],
-                                    [0, 0, -1, 0],
-                                    [0, 0, 0, 1]])
-        poses = np.einsum('ij,njk,kl->nil', OPENGL_TO_OPENCV, poses, OPENGL_TO_OPENCV)
-        poses = np.linalg.inv(poses)  # [N, 4, 4]
+        def extract_depth_number(filename):
+            match = re.search(r'depth(\d+)\.png', filename)
+            if match:
+                return int(match.group(1))
+            return 0
+    
+        rgb_files = sorted(glob(osp.join(root, scene_name, "images/*.png")), key=extract_img_number)
+        depth_files = sorted(glob(osp.join(root, scene_name, "depth/*.png")), key=extract_depth_number)
+        fx, fy, cx, cy = 554.2562584220408, 554.2562584220408, 320, 240
+        intrinsics = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
 
-        mask = [np.isnan(np.sum(x)) or np.isinf(np.sum(x)) or np.isneginf(np.sum(x)) for x in cam2world_list]
-        cam2world_list = [x for x, m in zip(cam2world_list, mask) if not m]
-        rgb_files = [x for x, m in zip(rgb_files, mask) if not m]
-        depth_files = [x for x, m in zip(depth_files, mask) if not m]
+        poses_file = osp.join(root, scene_name, "poses.txt") 
+        camera_poses, valids = self.load_poses(poses_file)  # opengl coord
 
-        intrinsics_list = [intrinsics
-                           for _ in range(len(cam2world_list))]
-        return poses, intrinsics_list, rgb_files, depth_files
-                
+        camera_poses = [x for idx, x in enumerate(camera_poses) if valids[idx]]
+        rgb_files = [x for idx, x in enumerate(rgb_files) if valids[idx]]
+        depth_files = [x for idx, x in enumerate(depth_files) if valids[idx]]
 
-class SevenScenesSample(Sample):
+        intrinsics_list = [intrinsics for _ in range(len(rgb_files))]
+        extrinsics_list = [np.linalg.inv(pose) for pose in camera_poses]  # w2c, opengl coordinate
+
+        return extrinsics_list, intrinsics_list, rgb_files, depth_files
+
+
+    def load_poses(self, path):
+        file = open(path, "r")
+        lines = file.readlines()
+        file.close()
+        poses = []
+        valid = []
+        lines_per_matrix = 4
+        for i in range(0, len(lines), lines_per_matrix):
+            if "nan" in lines[i]:
+                valid.append(False)
+                poses.append(np.eye(4, 4, dtype=np.float32).tolist())
+            else:
+                valid.append(True)
+                pose_floats = [
+                    [float(x) for x in line.split()]
+                    for line in lines[i : i + lines_per_matrix]
+                ]
+                poses.append(pose_floats)
+
+        return np.array(poses, dtype=np.float32), valid
+
+
+class neuralRGBDSample(Sample):
     def __init__(self, base, name):
         # base is folder path, not used here
-        # name is scene name: 02455b3d20
+        # name is scene name: rgbd_bonn_balloon2
         self.base = base
         self.name = name
         self.data = {}
 
-    def __init__(self, base, name):
-        # base is folder path, not used here
-        # name is scene name: 02455b3d20
-        self.base = base
-        self.name = name        ### change to opengl coordinate
-
-        self.data = {}
-
+    
     def load(self, root):
         out_dict = {'_base': root, 'scene_name': '_'.join(self.name.split('/'))}
 
-        ### images, data['images']: list of ['images/DSC06130.jpg', ... ]
+        ### images, data['images']: list of ['rgb_110/1548266531.51903.png', ... ]
         img_paths = self.data['images']
         out_dict['images'] = [self.load_image(os.path.join(root, self.name), x) for x in img_paths]
         out_dict['image_names'] = [os.path.basename(x) for x in img_paths]
@@ -110,22 +133,30 @@ class SevenScenesSample(Sample):
         out_dict['caption'] = ""
 
         return self.postprocess(out_dict)
-    
+
 
     def load_image(self, root, path):
         filename = osp.join(root, path)
         """Load a single image given the filename."""
         image = np.array(Image.open(filename)).astype(np.float32)
         return image.transpose(2, 0, 1)  # [3,H,W]
-    
+
+
     def load_position(self, root, path, intrinsic):
         filename = osp.join(root, path)
-        depth = np.array(Image.open(filename)).astype(np.float32)
-        depth = depth/ 1000
-        position = backproject_to_cv_position(depth, intrinsic)  # opencv coordinate
+
+        depthmap = np.array(Image.open(filename)).astype(np.float32)
+        depthmap = np.nan_to_num(depthmap.astype(np.float32), 0.0) / 1000.0
+        depthmap[depthmap > 10] = 0
+        depthmap[depthmap < 1e-3] = 0
+
+        position = backproject_to_cv_position(depthmap, intrinsic)  # opencv coordinate
         position[...,1:] *= -1  # change to opengl coordinate
         return position.astype(np.float32).transpose(2,0,1)  # [3,H,W]
 
+
+    def update_depth(self):
+        pass
 
     def postprocess(self, out_dict):
         ##### rotate normal to the first view
@@ -173,11 +204,12 @@ class SevenScenesSample(Sample):
         return out_dict
 
 
-class sevenScenesDataset(Dataset):
-    base_dataset = '7scenes'
+
+class neuralRGBDDataset(Dataset):
+    base_dataset = 'neuralRGBD'
 
     def __init__(self, root=None, layouts=None, split='test', clip_length=17, clip_overlap=0, **kwargs):
-        root = root if root is not None else self._get_path("7scenes", "root")
+        root = root if root is not None else self._get_path("neuralRGBD", "root")
         self.split = split
         self.clip_length, self.clip_overlap = clip_length, clip_overlap
 
@@ -192,11 +224,12 @@ class sevenScenesDataset(Dataset):
             self._init_samples_from_root_dir()
             self._write_samples_list()
 
+
     def _init_samples_from_root_dir(self,):
         # self.samples is defined in the base class, filled with Sample objects
 
         ##### first, get the scene names
-        split = self.split
+        split = 'test'
 
         ### get sequences
         self.split_file = os.path.join(os.path.dirname(__file__), "splits", "{}.txt".format(split))
@@ -205,9 +238,9 @@ class sevenScenesDataset(Dataset):
 
         print("Loading the {} dataset".format(split))
 
-        seqs = [SevenScenesSequence(self.root, scene_name, clip_length=self.clip_length, clip_overlap=self.clip_overlap)
-                for scene_name in self.split_list]
-        
+        seqs = [neuralRGBDSequence(self.root, scene_name, 
+                clip_length=self.clip_length, clip_overlap=self.clip_overlap) for scene_name in self.split_list]
+
         for seq in (tqdm(seqs) if self.verbose else seqs):
             for key_id in seq.source_ids.keys():
                 
@@ -219,7 +252,7 @@ class sevenScenesDataset(Dataset):
                 intrinsics = [seq.intrinsics[i] for i in all_ids]
                 depth = [seq.depth_path_list[i] for i in all_ids]
 
-                sample = SevenScenesSample(base=self.root, name=seq.scene_name)
+                sample = neuralRGBDSample(base=self.root, name=seq.scene_name)
 
                 sample.data['images'] = images
                 sample.data['poses'] = poses

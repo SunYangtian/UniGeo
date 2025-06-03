@@ -10,10 +10,10 @@ import numpy as np
 from PIL import Image
 
 from ..dataset_core.dataset import Dataset, Sample, _get_sample_list_path
-from utils.geometry_utils import backproject_to_cv_position
+from utils.geometry_utils import crop_image_and_adjust_intrinsics, backproject_to_cv_position
 
 
-class SevenScenesSequence:
+class replicaSequence:
     def __init__(self, root, scene_name, clip_length=30, clip_overlap=0):
 
         self.root = root
@@ -21,7 +21,7 @@ class SevenScenesSequence:
         
         self.extrinsics, self.intrinsics, self.rgb_path_list, self.depth_path_list = self.load_meta_data(self.root, self.scene_name)
 
-        gap = 1
+        gap = 3
         self.extrinsics = self.extrinsics[::gap]
         self.intrinsics = self.intrinsics[::gap]
         self.rgb_path_list = self.rgb_path_list[::gap]
@@ -46,52 +46,58 @@ class SevenScenesSequence:
 
 
     def load_meta_data(self, root, scene_name):
-        rgb_files = sorted(glob(osp.join(root, scene_name, "*.color.png")))
-        depth_files = sorted(glob(osp.join(root, scene_name, "*.depth.proj.png")))
-        poses_files = sorted(glob(osp.join(root, scene_name, "*.pose.txt")))
+        # root: /mnt/pfs/data/RGBD/Replica/vmap/
+        # sceen_name: room_0
+        def extract_rgb_number(filename):
+            match = re.search(r'rgb_(\d+)\.png', filename)
+            if match:
+                return int(match.group(1))
+            return 0
+        rgb_files = sorted(glob(osp.join(root, scene_name, "imap/00/rgb/*.png")), key=extract_rgb_number)
+        def extract_depth_number(filename):
+            match = re.search(r'depth_(\d+)\.png', filename)
+            if match:
+                return int(match.group(1))
+            return 0
+        depth_files = sorted(glob(osp.join(root, scene_name, "imap/00/depth/*.png")), key=extract_depth_number)
 
-        intrinsics = np.array([[525, 0, 320, 0, 525, 240, 0, 0, 1]]).reshape(3, 3)
-        cam2world_list = [np.genfromtxt(pose_file) for pose_file in poses_files]
-        poses = np.stack(cam2world_list, axis=0)  # [N, 4, 4]
+        pose_file = osp.join(root, scene_name, "imap/00/traj_w_cgl.txt")
+        # pose_file = osp.join(root, scene_name, "imap/00/traj_w_c.txt")
 
-        ### change to opengl coordinate
-        OPENGL_TO_OPENCV = np.float32([[1, 0, 0, 0],
-                                    [0, -1, 0, 0],
-                                    [0, 0, -1, 0],
-                                    [0, 0, 0, 1]])
-        poses = np.einsum('ij,njk,kl->nil', OPENGL_TO_OPENCV, poses, OPENGL_TO_OPENCV)
-        poses = np.linalg.inv(poses)  # [N, 4, 4]
+        fx = 600.0
+        fy = 600.0
+        cx = 599.5
+        cy = 339.5
+        intrinsics = np.array([[fx, 0, cx],
+                                [0, fy, cy],
+                                [0, 0, 1]], dtype=np.float32)
 
-        mask = [np.isnan(np.sum(x)) or np.isinf(np.sum(x)) or np.isneginf(np.sum(x)) for x in cam2world_list]
-        cam2world_list = [x for x, m in zip(cam2world_list, mask) if not m]
-        rgb_files = [x for x, m in zip(rgb_files, mask) if not m]
-        depth_files = [x for x, m in zip(depth_files, mask) if not m]
-
+        poses = np.loadtxt(pose_file, delimiter=" ").reshape([-1, 4, 4])  # [N, 4, 4]
+        # OPENGL_TO_OPENCV = np.float32([[1, 0, 0, 0],
+        #                             [0, -1, 0, 0],
+        #                             [0, 0, -1, 0],
+        #                             [0, 0, 0, 1]])
+        # poses = np.einsum('ij,njk,kl->nil', OPENGL_TO_OPENCV, poses, OPENGL_TO_OPENCV)
+        poses = np.linalg.inv(poses)  # [N, 4, 4], w2c
         intrinsics_list = [intrinsics
-                           for _ in range(len(cam2world_list))]
-        return poses, intrinsics_list, rgb_files, depth_files
-                
+                           for _ in range(len(poses))]
 
-class SevenScenesSample(Sample):
+        return poses, intrinsics_list, rgb_files, depth_files
+
+
+class replicaSample(Sample):
     def __init__(self, base, name):
         # base is folder path, not used here
-        # name is scene name: 02455b3d20
+        # name is scene name: rgbd_bonn_balloon2
         self.base = base
         self.name = name
         self.data = {}
 
-    def __init__(self, base, name):
-        # base is folder path, not used here
-        # name is scene name: 02455b3d20
-        self.base = base
-        self.name = name        ### change to opengl coordinate
-
-        self.data = {}
-
+    
     def load(self, root):
         out_dict = {'_base': root, 'scene_name': '_'.join(self.name.split('/'))}
 
-        ### images, data['images']: list of ['images/DSC06130.jpg', ... ]
+        ### images, data['images']: list of ['rgb_110/1548266531.51903.png', ... ]
         img_paths = self.data['images']
         out_dict['images'] = [self.load_image(os.path.join(root, self.name), x) for x in img_paths]
         out_dict['image_names'] = [os.path.basename(x) for x in img_paths]
@@ -110,39 +116,56 @@ class SevenScenesSample(Sample):
         out_dict['caption'] = ""
 
         return self.postprocess(out_dict)
-    
+
 
     def load_image(self, root, path):
         filename = osp.join(root, path)
         """Load a single image given the filename."""
         image = np.array(Image.open(filename)).astype(np.float32)
         return image.transpose(2, 0, 1)  # [3,H,W]
-    
+
+
     def load_position(self, root, path, intrinsic):
         filename = osp.join(root, path)
-        depth = np.array(Image.open(filename)).astype(np.float32)
-        depth = depth/ 1000
+        depth = np.array(Image.open(filename)).astype(np.float32) / 1000.
         position = backproject_to_cv_position(depth, intrinsic)  # opencv coordinate
         position[...,1:] *= -1  # change to opengl coordinate
+
         return position.astype(np.float32).transpose(2,0,1)  # [3,H,W]
 
+
+    def update_depth(self):
+        pass
 
     def postprocess(self, out_dict):
         ##### rotate normal to the first view
         cam_normal_list, world_normal_list = [], []
         cam_coord_list, world_coord_list = [], []
         mask_list = []
+        image_list = []
+        intrinsic_list = []
 
         keyview_idx = out_dict['keyview_idx']
         ref_pose = out_dict['extrinsics'][keyview_idx]  # [4, 4], w2c
         for idx in range(len(out_dict['cam_coord'])):
+            ##### apply crop if needed
+            cur_intrinsic = out_dict['intrinsics'][idx]
+            cur_image = out_dict['images'][idx]
+            input_h, input_w = cur_image.shape[1:]
+            crop_coord, cur_intrinsic = crop_image_and_adjust_intrinsics(cur_intrinsic, input_h, input_w, aspect_ratio=4/3)  # crop_coord: [x1, y1, x2, y2]
+            x1, y1, x2, y2 = crop_coord
+
+            cur_image = cur_image[:, y1:y2, x1:x2]
+
             src_pose = out_dict['extrinsics'][idx]
             trans_mat = ref_pose @ np.linalg.inv(src_pose)
-
 
             ### transform position, all in opengl coordinate
             cam_coord = out_dict['cam_coord'][idx]  # [3,H,W], in camera coordinate
             world_coord = (np.matmul(trans_mat[:3,:3], cam_coord.reshape(3, -1)) + trans_mat[:3,3][:,None]).reshape(3, *cam_coord.shape[1:])
+
+            cam_coord = cam_coord[:, y1:y2, x1:x2]
+            world_coord = world_coord[:, y1:y2, x1:x2]
 
             ### mask
             invalid_mask = np.isnan(cam_coord).any(axis=0)
@@ -161,23 +184,31 @@ class SevenScenesSample(Sample):
             # world_normal_list.append(world_normal)
             world_coord_list.append(world_coord)
             mask_list.append((~invalid_mask).astype(np.float32))
+            image_list.append(cur_image)
+            intrinsic_list.append(cur_intrinsic)
 
         # out_dict['cam_normal'] = cam_normal_list  # list of [3,H,W]
         out_dict['cam_coord'] = cam_coord_list
         # out_dict['world_normal'] = world_normal_list
         out_dict['world_coord'] = world_coord_list
         out_dict['mask'] = mask_list  # list of [H,W]
+        out_dict['images'] = image_list
+        out_dict['intrinsics'] = intrinsic_list
 
         ##### add extrinsic transformation
         out_dict['extrinsics'] = [x @ np.linalg.inv(ref_pose) for x in out_dict['extrinsics']]
         return out_dict
 
+        
 
-class sevenScenesDataset(Dataset):
-    base_dataset = '7scenes'
+
+
+
+class replicaDataset(Dataset):
+    base_dataset = 'replica'
 
     def __init__(self, root=None, layouts=None, split='test', clip_length=17, clip_overlap=0, **kwargs):
-        root = root if root is not None else self._get_path("7scenes", "root")
+        root = root if root is not None else self._get_path("replica", "root")
         self.split = split
         self.clip_length, self.clip_overlap = clip_length, clip_overlap
 
@@ -205,8 +236,8 @@ class sevenScenesDataset(Dataset):
 
         print("Loading the {} dataset".format(split))
 
-        seqs = [SevenScenesSequence(self.root, scene_name, clip_length=self.clip_length, clip_overlap=self.clip_overlap)
-                for scene_name in self.split_list]
+        seqs = [replicaSequence(self.root, scene_name, 
+                clip_length=self.clip_length, clip_overlap=self.clip_overlap) for scene_name in self.split_list]
         
         for seq in (tqdm(seqs) if self.verbose else seqs):
             for key_id in seq.source_ids.keys():
@@ -219,7 +250,7 @@ class sevenScenesDataset(Dataset):
                 intrinsics = [seq.intrinsics[i] for i in all_ids]
                 depth = [seq.depth_path_list[i] for i in all_ids]
 
-                sample = SevenScenesSample(base=self.root, name=seq.scene_name)
+                sample = replicaSample(base=self.root, name=seq.scene_name)
 
                 sample.data['images'] = images
                 sample.data['poses'] = poses
