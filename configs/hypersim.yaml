@@ -1,0 +1,5 @@
+dataset: "HyperSimDataset"
+root: "/mnt/pfs/data/hypersim_proc"
+h: 384
+w: 512
+split: "train"
