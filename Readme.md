@@ -73,7 +73,7 @@ This code borrows heavily from [Spann3R](https://github.com/HengyiWang/spann3r),
 ---
 If you find this work helpful, please consider citing
 ```
-@article{sun2025UniGeo,
+@article{sun2025unigeo,
   title={UniGeo: Taming Video Diffusion for Unified Consistent Geometry Estimation},
   author={Sun, Yang-Tian and Yu, Xin and Huang, Zehuan and Huang, Yi-Hua and Guo, Yuan-Chen and Yang, Ziyi and Cao, Yan-Pei and Qi, Xiaojuan},
   journal={arXiv preprint arXiv:2505.24521},
